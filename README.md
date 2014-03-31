@@ -48,8 +48,18 @@ with "-u", and `keybase` will read your password from the terminal.
   login. This is primarily useful as a test command to ensure logins
   work.
 * upload: this command uploads the public key specified by the `-pub`
-  flag to the account; it will replace any existing key there.
+  flag to the account; it will replace any existing key there. This
+  public key should be an ASCII-armoured OpenPGP-exported public key.
 * delete: this command removes the user's public key from the account.
+
+### TODO
+
+0. Hook `upload` into an OpenPGP key ring, and allow the user to
+   specify the key ID to upload by default (while allowing files.)
+0. Figure out the Go OpenPGP package to allow for signatures (i.e. the
+   sig/post_auth endpoint.
+0. Pester the Keybase folks about verifying using this client (and
+   encrypting and so forth).
 
 ### License
 
