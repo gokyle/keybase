@@ -11,12 +11,12 @@ import (
 )
 
 type loginRound1 struct {
-	Status       Status `json:"status"`
-	GuestID      string `json:"guest_id"`
-	Salt         string `json:"salt"`
-	LoginSession string `json:"login_session"`
-	PWHVersion   int    `json:"pwh_version"`
-	CSRFToken    string `json:"csrf_token"`
+	Status       *Status `json:"status"`
+	GuestID      string  `json:"guest_id"`
+	Salt         string  `json:"salt"`
+	LoginSession string  `json:"login_session"`
+	PWHVersion   int     `json:"pwh_version"`
+	CSRFToken    string  `json:"csrf_token"`
 }
 
 type sessionStart struct {
@@ -79,10 +79,15 @@ func GetSalt(user string) (session *sessionStart, err error) {
 	if err != nil {
 		return
 	}
+	resp.Body.Close()
 
 	lr1 := new(loginRound1)
 	err = json.Unmarshal(body, lr1)
 	if err != nil {
+		return
+	}
+	if !lr1.Status.Success() {
+		err = lr1.Status
 		return
 	}
 
@@ -116,6 +121,7 @@ func Login(user string, password []byte, sstart *sessionStart) (session *Session
 	if err != nil {
 		return
 	}
+	resp.Body.Close()
 
 	session = new(Session)
 	err = json.Unmarshal(body, session)
