@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 )
 
 func commandUrl(cmd string) string {
@@ -50,6 +51,7 @@ type Session struct {
 	Token   string  `json:"csrf_token"`
 }
 
+// LookupUser returns available user information for the named user.
 func LookupUser(user string) (u *User, err error) {
 	url := commandUrl("user/lookup") + "?username=" + user
 	resp, err := http.Get(url)
@@ -78,5 +80,78 @@ func LookupUser(user string) (u *User, err error) {
 	}
 
 	u = userResponse.User
+	return
+}
+
+type keyResponse struct {
+	Status  *Status `json:"status"`
+	KeyID   string  `json:"kid"`
+	Token   string  `json:"csrf_token"`
+	Primary bool    `json:"is_primary"`
+}
+
+// AddKey adds a new public key to the account. This will replace any
+// existing accounts.
+func (s *Session) AddKey(pub string) (kid string, err error) {
+	var form = url.Values{}
+	form.Add("csrf_token", s.Token)
+	form.Add("public_key", pub)
+	form.Add("is_primary", "true")
+	form.Add("session", s.Session)
+	resp, err := http.PostForm(commandUrl("key/add"), form)
+	if err != nil {
+		return
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return
+	}
+	resp.Body.Close()
+
+	var kr keyResponse
+	err = json.Unmarshal(body, &kr)
+	if err != nil {
+		return
+	} else if !kr.Status.Success() {
+		err = kr.Status
+		return
+	}
+
+	s.Token = kr.Token
+	kid = kr.KeyID
+	return
+}
+
+// DeleteKey performs a simple delete "revocation" (in Keybase
+// parlance): it will delete the key with the named key ID from the
+// user's account.
+func (s *Session) DeleteKey(kid string) (err error) {
+	var form = url.Values{}
+	form.Add("csrf_token", s.Token)
+	form.Add("kid", kid)
+	form.Add("revocation_type", "0")
+	form.Add("session", s.Session)
+	resp, err := http.PostForm(commandUrl("key/revoke"), form)
+	if err != nil {
+		return
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return
+	}
+	resp.Body.Close()
+
+	var kr keyResponse
+	err = json.Unmarshal(body, &kr)
+	if err != nil {
+		return
+	} else if !kr.Status.Success() {
+		err = kr.Status
+		return
+	}
+
+	s.Token = kr.Token
 	return
 }

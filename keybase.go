@@ -61,6 +61,8 @@ func lookup(name string) {
 		fmt.Printf("\t\tKey ID: %s\n", pub.KeyID)
 		fmt.Printf("\t\tCreated: %s\n", unixToString(pub.Created))
 		fmt.Printf("\t\tLast modified: %s\n", unixToString(pub.Modified))
+	} else {
+		fmt.Printf("\tNo public key.\n")
 	}
 }
 
@@ -89,6 +91,20 @@ func fetchKey(name, outFile string) {
 	}
 }
 
+func deleteKey(session *api.Session) {
+	pub, ok := session.User.PublicKeys["primary"]
+	if !ok {
+		fmt.Println("There is no public key to delete.")
+		os.Exit(1)
+	}
+	err := session.DeleteKey(pub.KeyID)
+	if err != nil {
+		fmt.Printf("Failed to delete your public key: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Println("Your public key has been deleted from your account.")
+}
+
 func validCommands() {
 	fmt.Println("Valid commands:")
 	fmt.Printf("\tlookup <users...>\n")
@@ -98,6 +114,7 @@ func validCommands() {
 
 func main() {
 	flUser := flag.String("u", "", "keybase.io username or email")
+	flKeyFile := flag.String("pub", "", "public key file")
 	flOutFile := flag.String("out", "", "output file")
 	flag.Parse()
 
@@ -140,6 +157,39 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Printf("Logged in as %s.\n", session.User.Basics.Username)
+	case "upload":
+		if *flKeyFile == "" {
+			fmt.Println("No public key specified. Please specify one with -pub.")
+			os.Exit(1)
+		}
 
+		pub, err := ioutil.ReadFile(*flKeyFile)
+		if err != nil {
+			fmt.Printf("Failed to read the public key: %v\n", err)
+			os.Exit(1)
+		}
+
+		session, err := login(*flUser)
+		if err != nil {
+			fmt.Printf("Login failed: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Logged in as %s.\n", session.User.Basics.Username)
+
+		kid, err := session.AddKey(string(pub))
+		if err != nil {
+			fmt.Printf("Upload failed: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Successfully uploaded new key with ID %s.\n", kid)
+	case "delete":
+		session, err := login(*flUser)
+		if err != nil {
+			fmt.Printf("Login failed: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Logged in as %s.\n", session.User.Basics.Username)
+
+		deleteKey(session)
 	}
 }

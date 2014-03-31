@@ -125,5 +125,11 @@ func Login(user string, password []byte, sstart *sessionStart) (session *Session
 
 	session = new(Session)
 	err = json.Unmarshal(body, session)
+	if err != nil {
+		return
+	} else if !session.Status.Success() {
+		err = session.Status
+		session = nil
+	}
 	return
 }
