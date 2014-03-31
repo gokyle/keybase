@@ -3,6 +3,9 @@
 Currently supported:
 
 * logging in
+* looking up users
+* adding a public key
+* deleting a public key
 
 Todo:
 

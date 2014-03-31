@@ -12,9 +12,16 @@ Currently supported:
 The `api/` subpackage contains an interface to the keybase.io API;
 it will have a better record of supported features during development.
 
+Things you should know about this package:
+
+* As long as I own this code, you *will not* be able to upload a
+  private key to Keybase. Sorry, but at this time, I am unwilling to
+  upload a private key to someone else's computer; this is
+  non-negotiable.
+
 ### Usage
 
-    keybase [-u user] [-out filename] command [arguments]
+    keybase [-u user] [-out file] [-pub file] command [arguments]
 
 The `-u` flag tells `keybase` what username to log in as; this is only
 used for authenticated commands.
@@ -40,6 +47,9 @@ with "-u", and `keybase` will read your password from the terminal.
 * testlogin: this command takes no arguments and just attempts to
   login. This is primarily useful as a test command to ensure logins
   work.
+* upload: this command uploads the public key specified by the `-pub`
+  flag to the account; it will replace any existing key there.
+* delete: this command removes the user's public key from the account.
 
 ### License
 

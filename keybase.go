@@ -110,6 +110,8 @@ func validCommands() {
 	fmt.Printf("\tlookup <users...>\n")
 	fmt.Printf("\tfetch <user>\n")
 	fmt.Printf("\ttestlogin\n")
+	fmt.Printf("\tupload\n")
+	fmt.Printf("\tdelete\n")
 }
 
 func main() {
