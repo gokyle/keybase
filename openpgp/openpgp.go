@@ -42,6 +42,7 @@ type KeyRing struct {
 	private  bool
 }
 
+// Private returns true if the keyring contains secret key material.
 func (keyRing *KeyRing) Private() bool {
 	return keyRing.private
 }
@@ -100,6 +101,7 @@ func (keyRing *KeyRing) Store() (err error) {
 	return
 }
 
+// Import imports an armoured public key block.
 func (keyRing *KeyRing) Import(armoured string) (n int, err error) {
 	buf := bytes.NewBufferString(armoured)
 	el, err := openpgp.ReadArmoredKeyRing(buf)
@@ -125,18 +127,6 @@ func (keyRing *KeyRing) Import(armoured string) (n int, err error) {
 		}
 	}
 	return
-}
-
-type armourBuffer struct {
-	*bytes.Buffer
-}
-
-func (ab *armourBuffer) Close() error {
-	return nil
-}
-
-func newArmourBuffer() *armourBuffer {
-	return &armourBuffer{new(bytes.Buffer)}
 }
 
 // Export writes out the named public key, or all public keys if keyID
