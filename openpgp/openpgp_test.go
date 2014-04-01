@@ -121,6 +121,7 @@ func TestStorePubRing(t *testing.T) {
 	}
 }
 
+// TestLoadSecRing validates loading secret keyrings.
 func TestLoadSecRing(t *testing.T) {
 	var err error
 	testSecRing, err = LoadKeyRing(testSecRingPath)
@@ -131,6 +132,9 @@ func TestLoadSecRing(t *testing.T) {
 	}
 }
 
+// TestStoreSecRing tests to ensure that attempting to store a secret
+// keyring fails; this is due to a limitation in the Go openpgp
+// package.
 func TestStoreSecRing(t *testing.T) {
 	tempFile, err := ioutil.TempFile("testdata/", "openpgp_test")
 	if err != nil {
@@ -148,6 +152,7 @@ func TestStoreSecRing(t *testing.T) {
 	}
 }
 
+// TestImportPub validates importing armoured public keys.
 func TestImportPub(t *testing.T) {
 	n, err := testPubRing.Import(testPubArmoured)
 	if err != nil {
@@ -158,6 +163,8 @@ func TestImportPub(t *testing.T) {
 
 }
 
+// TestImportPubToSecFail checks to make sure attempting to import a
+// public key to a secret keyring fails.
 func TestImportPubToSecFail(t *testing.T) {
 	_, err := testSecRing.Import(testPubArmoured)
 	if err != ErrSecRing {
@@ -165,6 +172,8 @@ func TestImportPubToSecFail(t *testing.T) {
 	}
 }
 
+// TestExportPub checks to make sure that a public can be exported and
+// re-imported.
 func TestExportPub(t *testing.T) {
 	var fpr = "1F72F8B9CF8D215881E3C1D0AF7DB9C0CCAFF8EB"
 	armoured, err := testPubRing.Export(fpr)
@@ -189,5 +198,34 @@ func TestExportPub(t *testing.T) {
 		t.Fatalf("%v", err)
 	} else if n != 1 {
 		t.Fatal("failed to import public key")
+	}
+}
+
+// TestSign validates producing an armoured detached signature using a
+// private key.
+func TestSign(t *testing.T) {
+	var passphrase = []byte("passphrase")
+	var fpr = "1F72F8B9CF8D215881E3C1D0AF7DB9C0CCAFF8EB"
+
+	signer := testSecRing.Entity(fpr)
+	if signer == nil {
+		t.Fatal("invalid secret keyring")
+	} else if signer.PrivateKey == nil {
+		t.Fatal("invalid secret key in secrey keyring")
+	}
+
+	err := signer.PrivateKey.Decrypt(passphrase)
+	if err != nil {
+		t.Fatalf("unlock failed: %v", err)
+	} else if signer.PrivateKey.Encrypted {
+		t.Fatal("failed to unlock key")
+	}
+
+	message := []byte("Hello, world")
+	sig, err := testSecRing.Sign(message, fpr)
+	if err != nil {
+		t.Fatal("signature failed: %v", err)
+	} else if len(sig) == 0 {
+		t.Fatal("empty signature")
 	}
 }
