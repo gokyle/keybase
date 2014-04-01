@@ -42,6 +42,10 @@ type KeyRing struct {
 	private  bool
 }
 
+func (keyRing *KeyRing) Private() bool {
+	return keyRing.private
+}
+
 // LoadKeyRing reads the unarmoured keyring stored at the named path.
 func LoadKeyRing(path string) (keyRing *KeyRing, err error) {
 	file, err := os.Open(path)
