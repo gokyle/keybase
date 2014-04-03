@@ -1,10 +1,14 @@
 package openpgp
 
 import (
-	"code.google.com/p/go.crypto/openpgp"
-	//"code.google.com/p/go.crypto/openpgp/packet"
 	"bytes"
+	"code.google.com/p/go.crypto/openpgp"
 	"code.google.com/p/go.crypto/openpgp/armor"
+	"code.google.com/p/go.crypto/openpgp/packet"
+	"crypto"
+	"crypto/sha1"
+	_ "crypto/sha512"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"github.com/gokyle/readpass"
@@ -12,15 +16,20 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 const Version = "0.1.0"
 
 var (
 	DefaultPublicKeyRing = filepath.Join(os.Getenv("HOME"), ".gnupg", "pubring.gpg")
-
 	DefaultSecretKeyRing = filepath.Join(os.Getenv("HOME"), ".gnupg", "secring.gpg")
 )
+
+func SetKeyRingDir(dir string) {
+	PubRingPath = filepath.Join(dir, "pubring.gpg")
+	SecRingPath = filepath.Join(dir, "secring.gpg")
+}
 
 var (
 	ErrPubRing          = errors.New("openpgp: public keyring")
@@ -35,6 +44,18 @@ var (
 	PubRingPath string = DefaultPublicKeyRing
 	SecRingPath string = DefaultSecretKeyRing
 )
+
+// SaneDefaultConfig is a more secure default config than the defaults.
+func ParanoidDefaultConfig() *packet.Config {
+	return &packet.Config{
+		DefaultHash:            crypto.SHA384,
+		DefaultCipher:          packet.CipherAES256,
+		DefaultCompressionAlgo: packet.CompressionZLIB,
+		CompressionConfig:      &packet.CompressionConfig{-1},
+	}
+}
+
+var DefaultConfig *packet.Config = nil
 
 // A KeyRing contains a list of entities and the state required to
 // maintain the key ring.
@@ -146,7 +167,7 @@ func (keyRing *KeyRing) Import(armoured string) (n int, err error) {
 // is empty. The result is an ASCII-armoured public key.
 func (keyRing *KeyRing) Export(keyID string) (armoured string, err error) {
 	buf := new(bytes.Buffer)
-	blockType := "PGP PUBLIC KEY BLOCK"
+	blockType := openpgp.PublicKeyType
 	blockHeaders := map[string]string{
 		"Version": fmt.Sprintf("Keybase Go client (OpenPGP version %s)", Version),
 	}
@@ -218,12 +239,120 @@ func (keyRing *KeyRing) Sign(message []byte, keyID string) (sig []byte, err erro
 	}
 
 	signer := keyRing.Entities[strings.ToLower(keyID)]
-	msgBuffer := bytes.NewBuffer(message)
-	sigBuffer := new(bytes.Buffer)
-	err = openpgp.ArmoredDetachSignText(sigBuffer, signer, msgBuffer, nil)
+	buf := new(bytes.Buffer)
+	hdr := map[string]string{
+		"Version": fmt.Sprintf("Keybase Go client (OpenPGP version %s)", Version),
+	}
+	armourBuf, err := armor.Encode(buf, "PGP MESSAGE", hdr)
 	if err != nil {
 		return
 	}
-	sig = sigBuffer.Bytes()
+
+	opSig := &packet.OnePassSignature{
+		SigType:    packet.SigTypeBinary,
+		Hash:       crypto.SHA1,
+		PubKeyAlgo: packet.PubKeyAlgoRSA,
+		KeyId:      signer.PrimaryKey.KeyId,
+		IsLast:     true,
+	}
+	err = opSig.Serialize(armourBuf)
+	if err != nil {
+		return
+	}
+
+	literalPacket, err := newLiteralDataPacket(message, "", uint32(time.Now().Unix()))
+	if err != nil {
+		return
+	}
+	_, err = armourBuf.Write(literalPacket)
+	if err != nil {
+		return
+	}
+
+	sigPacket := &packet.Signature{
+		SigType:      packet.SigTypeBinary,
+		IssuerKeyId:  &signer.PrimaryKey.KeyId,
+		PubKeyAlgo:   packet.PubKeyAlgoRSA,
+		Hash:         crypto.SHA1,
+		CreationTime: time.Now(),
+	}
+	h := sha1.New()
+	h.Write(message)
+	err = sigPacket.Sign(h, signer.PrivateKey, nil)
+	if err != nil {
+		return
+	}
+
+	err = sigPacket.Serialize(armourBuf)
+	if err != nil {
+		return
+	}
+	armourBuf.Close()
+	sig = buf.Bytes()
+	return
+}
+
+// NewEntity creates a new entity. It doesn't provide an option for comments.
+func NewEntity(name, email, outFile string) (ne *openpgp.Entity, err error) {
+	ne, err = openpgp.NewEntity(name, "", email, DefaultConfig)
+	if err != nil {
+		return
+	}
+
+	out, err := os.Create(outFile)
+	if err != nil {
+		ne = nil
+		return
+	}
+
+	hdr := map[string]string{
+		"Version": fmt.Sprintf("Keybase Go client (OpenPGP version %s)", Version),
+	}
+
+	keyOut, err := armor.Encode(out, openpgp.PrivateKeyType, hdr)
+	if err != nil {
+		ne = nil
+		return
+	}
+
+	defer func() {
+		keyOut.Close()
+		out.Close()
+	}()
+
+	err = ne.SerializePrivate(keyOut, DefaultConfig)
+	if err != nil {
+		ne = nil
+		return
+	}
+
+	return
+}
+
+func newLiteralDataPacket(literal []byte, fileName string, ts uint32) (pkt []byte, err error) {
+	var header = [3]byte{0x80}
+	header[0] |= (11 << 2)
+	header[0] |= 1
+
+	var timeStamp = uint32(time.Now().Unix())
+	var timeStampBytes [4]byte
+	binary.BigEndian.PutUint32(timeStampBytes[:], timeStamp)
+	if err != nil {
+		return
+	}
+
+	body := []byte("b")
+	body = append(body, byte(len(fileName)))
+	body = append(body, []byte(fileName)...)
+	body = append(body, timeStampBytes[:]...)
+	body = append(body, literal...)
+	binary.BigEndian.PutUint16(header[1:], uint16(len(body)))
+	if err != nil {
+		return
+	}
+	buf := new(bytes.Buffer)
+	buf.Write(header[:])
+	buf.Write(body)
+	pkt = buf.Bytes()
 	return
 }

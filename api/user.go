@@ -62,9 +62,10 @@ const (
 
 // A Key contains information about a public or private key.
 type Key struct {
-	KeyID    string  `json:"kid"`
-	KeyType  KeyType `json:"key_type"`
-	Bundle   string  `json:"bundle"`
-	Modified int     `json:"mtime"`
-	Created  int     `json:"ctime"`
+	KeyID       string  `json:"kid"`
+	Fingerprint string  `json:"key_fingerprint"`
+	KeyType     KeyType `json:"key_type"`
+	Bundle      string  `json:"bundle"`
+	Modified    int     `json:"mtime"`
+	Created     int     `json:"ctime"`
 }

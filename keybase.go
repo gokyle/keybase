@@ -1,12 +1,15 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"github.com/gokyle/keybase/api"
+	"github.com/gokyle/keybase/openpgp"
 	"github.com/gokyle/readpass"
 	"io/ioutil"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -64,6 +67,7 @@ func lookup(name string) {
 	} else {
 		fmt.Printf("\tNo public key.\n")
 	}
+
 }
 
 func fetchKey(name, outFile string) {
@@ -105,6 +109,67 @@ func deleteKey(session *api.Session) {
 	fmt.Println("Your public key has been deleted from your account.")
 }
 
+func postAuth(session *api.Session, keyRing *openpgp.KeyRing) {
+	pub := session.User.PublicKeys["primary"]
+	if pub == nil {
+		fmt.Println("No public key for this account.")
+		os.Exit(1)
+	}
+
+	fmt.Printf("Fingerprint: %s\n", pub.Fingerprint)
+	signer := keyRing.Entity(pub.Fingerprint)
+	if signer == nil {
+		fmt.Println("No private key for this account.")
+		os.Exit(1)
+	}
+
+	/*
+	   	var signature = `-----BEGIN PGP MESSAGE-----
+	   Version: Keybase Go client (OpenPGP version 0.1.0)
+
+	   xA0DAAIB7k+6hRB9rTcBrQFRYgBTPJCXeyJib2R5Ijp7ImtleSI6eyJmaW5nZXJw
+	   cmludCI6IjNiMGM0ZGU3ZDE2NThkMWE1ZmFlYzEyMGVlNGZiYTg1MTA3ZGFkMzci
+	   LCJob3N0Ijoia2V5YmFzZS5pbyIsImtleV9pZCI6IjAxMDEwYjA0YTFmNzk2M2Nm
+	   YjUxNjQ0ZWUyM2E0YTA2NmY1MzkxN2FmNzE1N2E5Njg5MWViYjAzNTExZTU1Yjk2
+	   MmUzMGEiLCJ1aWQiOiI5NGVmMWUzNTc4OWM2ZmE2NThiNzhlMWIwNWVlZGUwMCIs
+	   InVzZXJuYW1lIjoia2lzb20ifSwic3RyaW5nIjoiIiwidHlwZSI6ImF1dGgiLCJ2
+	   ZXJzaW9uIjoxfSwiY3RpbWUiOjEzOTY0NzgwOTQsImV4cGlyZXNfaW4iOjg2NDAw
+	   LCJ0YWciOiJzaWduYXR1cmUifcLBXAQAAQIAEAUCUzyQlwkQ7k+6hRB9rTcAANSz
+	   EAAseFDy8srABjWmQqp4uhaOPGUDzO9E2wYWm6GcFf60KeenMkYUCssHoP12a4eB
+	   ZLgt2ERkIFAQmn+hQkkfBSK7tQjh6XQmXstHwkhUp2XG2/Kn3Lek7t2sgaqzdt46
+	   /qVmgymBbSgraW0JYzDC+Bta8RRfYhkYyNTjtWnx9Ue2r2R6UcTDGyTS4cWMgAVY
+	   h1ZgQwNLfHMDqjEP93gPj9n8JZb5EN0MXGCe3Z6wMfXIams2QQ4TdsMGvwJffKel
+	   GGOaqUYoTlE01zSF9RA53xTzqwC7PpVcOO6V7FMpRM6UQE6x1MQzy/Iz8gBZONpb
+	   G24IkbpFj+SQYdUJ3fedTUiTWT32n/9sgp3NKY4lFdYKEDhv6fMgSLFkMhbvf6YC
+	   d0Jd1OORtzke3MxJPDHRLlnCNdNA3ZfwD1Dx2Mu8j7JknWBdUsZK2KtDh3hijfmY
+	   TGT1TL6fBT9DAzGfJj305rTNaYR2GnD8ncmqMCD5O+ePVFaQxyrC9zgy50UEOTNS
+	   BLVqFj1mCE38ziBxO39Y1Kx4U0ZUmQ90Fz7nzhw3alnPQaPF6M8f+q2Mx+xuZhHF
+	   hYddlV4afpsHp14sAeLaImLZ+IPvL+KH0f3Pc0N9rSaCJhsR5yLLpoPXk3RXrs+1
+	   kXBuzD8AyhGVVJ+VCOuauUwRQT+Ergl7auG94uQi7SN15w==
+	   =gRI/
+	   -----END PGP MESSAGE-----`
+	*/
+	sigData, err := session.SignaturePostAuthData()
+	if err != nil {
+		fmt.Printf("Failed to get signature post auth data: %v\n", err)
+		os.Exit(1)
+	}
+
+	signature, err := keyRing.Sign(sigData, pub.Fingerprint)
+	if err != nil {
+		fmt.Printf("Signing failed: %v\n", err)
+		os.Exit(1)
+	}
+
+	authToken, err := session.SignaturePostAuth([]byte(signature))
+	if err != nil {
+		fmt.Printf("Posting signature authentication failed: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Authentication token: %x\n", authToken)
+}
+
 func validCommands() {
 	fmt.Println("Valid commands:")
 	fmt.Printf("\tlookup <users...>\n")
@@ -118,12 +183,17 @@ func main() {
 	flUser := flag.String("u", "", "keybase.io username or email")
 	flKeyFile := flag.String("pub", "", "public key file")
 	flOutFile := flag.String("out", "", "output file")
+	flGPGDir := flag.String("home", "", "override the default GnuPG home directory")
 	flag.Parse()
 
 	if flag.NArg() == 0 {
 		fmt.Println("No command specified.")
 		validCommands()
 		os.Exit(1)
+	}
+
+	if *flGPGDir != "" {
+		openpgp.SetKeyRingDir(*flGPGDir)
 	}
 
 	cmd := flag.Arg(0)
@@ -159,16 +229,38 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Printf("Logged in as %s.\n", session.User.Basics.Username)
+		fmt.Printf("Session token: %s\n", session.Session)
+		fmt.Printf("CSRF token: %s\n", session.Token)
 	case "upload":
-		if *flKeyFile == "" {
-			fmt.Println("No public key specified. Please specify one with -pub.")
+		var armoured string
+		var err error
+
+		pubRing, err := openpgp.LoadKeyRing(openpgp.PubRingPath)
+		if err != nil {
+			fmt.Printf("Couldn't open public keyring: %v\n", err)
 			os.Exit(1)
 		}
 
-		pub, err := ioutil.ReadFile(*flKeyFile)
-		if err != nil {
-			fmt.Printf("Failed to read the public key: %v\n", err)
-			os.Exit(1)
+		if *flKeyFile == "" {
+			if flag.NArg() == 2 {
+				armoured, err = pubRing.Export(flag.Arg(1))
+				if err != nil {
+					fmt.Printf("Key not found.")
+					os.Exit(1)
+				}
+			} else {
+				fmt.Println("No file specified (with -pub) and no fingerprint specified.")
+				fmt.Println("Cowardly refusing to proceed.")
+				os.Exit(1)
+			}
+		} else {
+
+			pub, err := ioutil.ReadFile(*flKeyFile)
+			if err != nil {
+				fmt.Printf("Failed to read the public key: %v\n", err)
+				os.Exit(1)
+			}
+			armoured = string(pub)
 		}
 
 		session, err := login(*flUser)
@@ -178,7 +270,7 @@ func main() {
 		}
 		fmt.Printf("Logged in as %s.\n", session.User.Basics.Username)
 
-		kid, err := session.AddKey(string(pub))
+		kid, err := session.AddKey(armoured)
 		if err != nil {
 			fmt.Printf("Upload failed: %v\n", err)
 			os.Exit(1)
@@ -193,5 +285,63 @@ func main() {
 		fmt.Printf("Logged in as %s.\n", session.User.Basics.Username)
 
 		deleteKey(session)
+
+	case "auth":
+		secRing, err := openpgp.LoadKeyRing(openpgp.SecRingPath)
+		if err != nil {
+			fmt.Printf("Failed to load GnuPG secret keyring: %v.\n", err)
+			os.Exit(1)
+		}
+
+		session, err := login(*flUser)
+		if err != nil {
+			fmt.Printf("Login failed: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Logged in as %s.\n", session.User.Basics.Username)
+		postAuth(session, secRing)
+	case "genkey":
+		if *flOutFile == "" {
+			fmt.Println("Please specify an output file with -out.")
+			os.Exit(1)
+		}
+		newKey(*flOutFile)
+	}
+}
+
+func readPrompt(prompt string) (in string, err error) {
+	fmt.Printf("%s", prompt)
+	rd := bufio.NewReader(os.Stdin)
+	line, err := rd.ReadString('\n')
+	if err != nil {
+		return
+	}
+	in = strings.TrimSpace(line)
+	return
+}
+
+func newKey(outFile string) {
+	name, err := readPrompt("Name: ")
+	if err != nil {
+		fmt.Printf("%v\n", err)
+		os.Exit(1)
+	} else if name == "" {
+		fmt.Println("Name required!")
+		os.Exit(1)
+	}
+
+	email, err := readPrompt("Email: ")
+	if err != nil {
+		fmt.Printf("%v\n", err)
+		os.Exit(1)
+	} else if email == "" {
+		fmt.Println("Email required!")
+		os.Exit(1)
+	}
+
+	_, err = openpgp.NewEntity(name, email, outFile)
+	if err != nil {
+		fmt.Printf("Failed to generate key: %v\n", err)
+		os.Exit(1)
 	}
 }

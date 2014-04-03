@@ -228,4 +228,5 @@ func TestSign(t *testing.T) {
 	} else if len(sig) == 0 {
 		t.Fatal("empty signature")
 	}
+	ioutil.WriteFile("testdata/signature.asc", sig, 0644)
 }
