@@ -2,12 +2,15 @@ package api
 
 import "flag"
 import "testing"
+import "fmt"
 
 var testConfig struct {
 	LoginUser string
 	LoginPass []byte
 	Start     *sessionStart
 }
+
+var testSession *Session
 
 func init() {
 	lUser := flag.String("api.user", "alice", "test user")
@@ -31,8 +34,20 @@ func TestGetSalt(t *testing.T) {
 }
 
 func TestLogin(t *testing.T) {
-	err := Login(testConfig.LoginUser, testConfig.LoginPass, testConfig.Start)
+	var err error
+	testSession, err = Login(testConfig.LoginUser, testConfig.LoginPass, testConfig.Start)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
+}
+
+func TestNextSequenceNo(t *testing.T) {
+	if testSession == nil {
+		t.Fatal("session not established")
+	}
+	seqNum, err := testSession.NextSequence()
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+	fmt.Printf("seq num: %d\n", seqNum)
 }

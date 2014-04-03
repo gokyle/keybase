@@ -251,3 +251,165 @@ func (s *Session) SignaturePostAuth(sig []byte) (authToken []byte, err error) {
 	authToken, err = hex.DecodeString(bodyData.AuthToken)
 	return
 }
+
+// Retrieve the next sequence number for signatures.
+func (s *Session) NextSequence() (seqNum int, prev string, err error) {
+	var form = url.Values{}
+	form.Add("type", "PUBLIC")
+	form.Add("session", s.Session)
+
+	var responseBody struct {
+		Status *Status `json:"status"`
+		Prev   string  `json:"prev"`
+		SeqNo  int     `json:"seqno"`
+		Token  string  `json:"csrf_token"`
+	}
+
+	resp, err := http.Get(commandUrl("sig/next_seqno") + "?" + form.Encode())
+	if err != nil {
+		return
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return
+	}
+	resp.Body.Close()
+
+	err = json.Unmarshal(body, &responseBody)
+	if err != nil {
+		fmt.Printf("JSON: %s", string(body))
+		return
+	} else if !responseBody.Status.Success() {
+		err = responseBody.Status
+		return
+	}
+
+	s.Token = responseBody.Token
+	seqNum = responseBody.SeqNo
+	prev = responseBody.Prev
+	return
+}
+
+type signatureBody struct {
+	Client struct {
+		Name    string `json:"name"`
+		Version string `json:"version"`
+	} `json:"client"`
+	Key     keySigData `json:"key"`
+	Service struct {
+		Name     string `json:"name"`
+		Username string `json:"username"`
+	} `json:"service"`
+	Type    string `json:"type"`
+	Version int    `json:"version"`
+}
+
+type signaturePayload struct {
+	Body    signatureBody `json:"body"`
+	Created int           `json:"created"`
+	Expires int           `json:"expire_in"`
+	SeqNo   int           `json:"seqno"`
+	Prev    string        `json:"prev"`
+}
+
+func (s *Session) serviceBody(svcName, svcUser string) (svcBody *signaturePayload, err error) {
+	pub := s.User.PublicKeys["primary"]
+	if pub == nil {
+		err = ErrNoPublicKey
+		return
+	}
+
+	svcBody = new(signaturePayload)
+	svcBody.Body.Client.Name = "Keybase Go client"
+	svcBody.Body.Client.Version = "1.0.0"
+	svcBody.Body.Key = keySigData{
+		Fingerprint: pub.Fingerprint,
+		Host:        "keybase.io",
+		KeyID:       pub.KeyID,
+		UserID:      s.User.ID,
+		Username:    s.User.Basics.Username,
+	}
+	svcBody.Body.Service.Name = svcName
+	svcBody.Body.Service.Username = svcUser
+	svcBody.Body.Type = "web_service_binding"
+	svcBody.Body.Version = 1
+	svcBody.Created = int(time.Now().Unix())
+	svcBody.Expires = 157680000 // 5 years
+
+	svcBody.SeqNo, svcBody.Prev, err = s.NextSequence()
+	if err != nil {
+		svcBody = nil
+	}
+	return
+}
+
+func (s *Session) TwitterGetAuth(username string) (authData []byte, err error) {
+	svcBody, err := s.serviceBody("twitter", username)
+	if err != nil {
+		return
+	}
+	return json.Marshal(svcBody)
+}
+
+func (s *Session) GithubGetAuth(username string) (authData []byte, err error) {
+	svcBody, err := s.serviceBody("github", username)
+	if err != nil {
+		return
+	}
+	return json.Marshal(svcBody)
+}
+
+type rawProof struct {
+	Status      *Status `json:"status"`
+	Text        string  `json:"proof_text"`
+	SigID       string  `json:"sig_id"`
+	ProofID     string  `json:"proof_id"`
+	PayloadHash string  `json:"payload_hash"`
+	Token       string  `json:"csrf_token"`
+}
+
+type Proof struct {
+	Text        string
+	SigID       string
+	ProofID     string
+	PayloadHash string
+}
+
+func (s *Session) ServicePostAuth(sig []byte, user, service string) (proof *Proof, err error) {
+	var form = url.Values{}
+	form.Add("sig", string(sig))
+	form.Add("remote_username", user)
+	form.Add("type", fmt.Sprintf("web_service_binding.%s", service))
+	form.Add("session", s.Session)
+	form.Add("csrf_token", s.Token)
+
+	resp, err := http.PostForm(commandUrl("sig/post"), form)
+	if err != nil {
+		return
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return
+	}
+	resp.Body.Close()
+
+	var rProof rawProof
+	err = json.Unmarshal(body, &rProof)
+	if err != nil {
+		return
+	} else if !rProof.Status.Success() {
+		err = rProof.Status
+		return
+	}
+
+	proof = &Proof{
+		Text:        rProof.Text,
+		SigID:       rProof.SigID,
+		ProofID:     rProof.ProofID,
+		PayloadHash: rProof.PayloadHash,
+	}
+	s.Token = rProof.Token
+	return
+}

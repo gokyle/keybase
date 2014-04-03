@@ -306,6 +306,29 @@ func main() {
 			os.Exit(1)
 		}
 		newKey(*flOutFile)
+
+	case "nextseq":
+		session, err := login(*flUser)
+		if err != nil {
+			fmt.Printf("Login failed: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Logged in as %s.\n", session.User.Basics.Username)
+		nextSeq(session)
+	case "authtwit":
+		secRing, err := openpgp.LoadKeyRing(openpgp.SecRingPath)
+		if err != nil {
+			fmt.Printf("Failed to load GnuPG secret keyring: %v.\n", err)
+			os.Exit(1)
+		}
+
+		session, err := login(*flUser)
+		if err != nil {
+			fmt.Printf("Login failed: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Logged in as %s.\n", session.User.Basics.Username)
+		authTwitter(session, secRing)
 	}
 }
 
@@ -344,4 +367,54 @@ func newKey(outFile string) {
 		fmt.Printf("Failed to generate key: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+func nextSeq(session *api.Session) {
+	seqNum, prev, err := session.NextSequence()
+	if err != nil {
+		fmt.Printf("[!] %v\n", err)
+		os.Exit(1)
+	} else {
+		fmt.Printf("Next sequence: %d\n", seqNum)
+		fmt.Printf("Previous hash: %s\n", prev)
+	}
+}
+
+func authTwitter(session *api.Session, keyRing *openpgp.KeyRing) {
+	username, err := readPrompt("Twitter username: ")
+	if err != nil {
+		fmt.Printf("Couldn't read from console: %v\n", err)
+	}
+
+	authData, err := session.TwitterGetAuth(username)
+	if err != nil {
+		fmt.Printf("Couldn't get authentication data: %v\n", err)
+	}
+
+	pub := session.User.PublicKeys["primary"]
+	if pub == nil {
+		fmt.Println("No public key for this account.")
+		os.Exit(1)
+	}
+
+	fmt.Printf("Fingerprint: %s\n", pub.Fingerprint)
+	signer := keyRing.Entity(pub.Fingerprint)
+	if signer == nil {
+		fmt.Println("No private key for this account.")
+		os.Exit(1)
+	}
+
+	ioutil.WriteFile("/tmp/authdata.json", authData, 0644)
+	sig, err := keyRing.Sign(authData, pub.Fingerprint)
+	if err != nil {
+		fmt.Printf("Couldn't sign authentication data: %v\n", err)
+		os.Exit(1)
+	}
+
+	proof, err := session.ServicePostAuth(sig, username, "twitter")
+	if err != nil {
+		fmt.Printf("Couldn't authenticate via Twitter: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("Proof text: '%s'\n", proof.Text)
 }
