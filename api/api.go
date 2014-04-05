@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"time"
+	"strings"
 )
 
 var ErrNoPublicKey = fmt.Errorf("api: no public key for user")
@@ -196,7 +197,7 @@ func (s *Session) SignaturePostAuthData() (msg []byte, err error) {
 			Key: keySigData{
 				Fingerprint: pub.Fingerprint,
 				Host:        "keybase.io",
-				KeyID:       pub.KeyID,
+				KeyID:       strings.ToUpper(pub.Fingerprint[len(pub.Fingerprint)-16:]),
 				UserID:      s.User.ID,
 				Username:    s.User.Basics.Username,
 			},
@@ -307,7 +308,7 @@ type signatureBody struct {
 
 type signaturePayload struct {
 	Body    signatureBody `json:"body"`
-	Created int           `json:"created"`
+	Created int           `json:"ctime"`
 	Expires int           `json:"expire_in"`
 	SeqNo   int           `json:"seqno"`
 	Prev    string        `json:"prev"`
@@ -326,7 +327,7 @@ func (s *Session) serviceBody(svcName, svcUser string) (svcBody *signaturePayloa
 	svcBody.Body.Key = keySigData{
 		Fingerprint: pub.Fingerprint,
 		Host:        "keybase.io",
-		KeyID:       pub.KeyID,
+		KeyID:       strings.ToUpper(pub.Fingerprint[len(pub.Fingerprint)-16:]),
 		UserID:      s.User.ID,
 		Username:    s.User.Basics.Username,
 	}

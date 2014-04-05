@@ -403,7 +403,6 @@ func authTwitter(session *api.Session, keyRing *openpgp.KeyRing) {
 		fmt.Println("No private key for this account.")
 		os.Exit(1)
 	}
-
 	ioutil.WriteFile("/tmp/authdata.json", authData, 0644)
 	sig, err := keyRing.Sign(authData, pub.Fingerprint)
 	if err != nil {
