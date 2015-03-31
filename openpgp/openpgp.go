@@ -42,8 +42,8 @@ var (
 
 // Paths to the public and secret keyrings.
 var (
-	PubRingPath string = DefaultPublicKeyRing
-	SecRingPath string = DefaultSecretKeyRing
+	PubRingPath = DefaultPublicKeyRing
+	SecRingPath = DefaultSecretKeyRing
 )
 
 // SaneDefaultConfig is a more secure default config than the defaults.
@@ -56,7 +56,7 @@ func ParanoidDefaultConfig() *packet.Config {
 	}
 }
 
-var DefaultConfig *packet.Config = nil
+var DefaultConfig *packet.Config
 
 // A KeyRing contains a list of entities and the state required to
 // maintain the key ring.
@@ -215,7 +215,7 @@ func (keyRing *KeyRing) Unlock(keyID string) (err error) {
 	}
 
 	var id string
-	for k, _ := range e.Identities {
+	for k := range e.Identities {
 		id = k
 		break
 	}
