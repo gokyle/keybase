@@ -2,21 +2,22 @@ package openpgp
 
 import (
 	"bytes"
-	"code.google.com/p/go.crypto/openpgp"
-	"code.google.com/p/go.crypto/openpgp/armor"
-	"code.google.com/p/go.crypto/openpgp/packet"
 	"crypto"
 	"crypto/sha1"
 	_ "crypto/sha512"
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/gokyle/readpass"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/gokyle/readpass"
+	"golang.org/x/crypto/openpgp"
+	"golang.org/x/crypto/openpgp/armor"
+	"golang.org/x/crypto/openpgp/packet"
 )
 
 const Version = "0.1.0"

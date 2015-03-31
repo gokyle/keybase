@@ -1,10 +1,11 @@
 package openpgp
 
 import (
-	"code.google.com/p/go.crypto/openpgp"
 	"io/ioutil"
 	"os"
 	"testing"
+
+	"golang.org/x/crypto/openpgp"
 )
 
 var (

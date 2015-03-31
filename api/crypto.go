@@ -1,9 +1,10 @@
 package api
 
 import (
-	"code.google.com/p/go.crypto/scrypt"
 	"crypto/hmac"
 	"crypto/sha512"
+
+	"golang.org/x/crypto/scrypt"
 )
 
 func zero(in []byte) {
