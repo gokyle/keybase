@@ -146,7 +146,7 @@ func (keyRing *KeyRing) Import(armoured string) (n int, err error) {
 		}
 
 		for name, id := range e.Identities {
-			err = e.PrimaryKey.VerifyUserIdSignature(name, id.SelfSignature)
+			err = e.PrimaryKey.VerifyUserIdSignature(name, e.PrimaryKey, id.SelfSignature)
 			if err != nil {
 				return
 			}
