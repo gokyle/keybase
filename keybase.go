@@ -4,13 +4,14 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"github.com/gokyle/keybase/api"
-	"github.com/gokyle/keybase/openpgp"
-	"github.com/gokyle/readpass"
 	"io/ioutil"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/gokyle/keybase/api"
+	"github.com/gokyle/keybase/openpgp"
+	"github.com/gokyle/readpass"
 )
 
 func zero(in []byte) {
