@@ -2,21 +2,22 @@ package openpgp
 
 import (
 	"bytes"
-	"code.google.com/p/go.crypto/openpgp"
-	"code.google.com/p/go.crypto/openpgp/armor"
-	"code.google.com/p/go.crypto/openpgp/packet"
 	"crypto"
 	"crypto/sha1"
 	_ "crypto/sha512"
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/gokyle/readpass"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/gokyle/readpass"
+	"golang.org/x/crypto/openpgp"
+	"golang.org/x/crypto/openpgp/armor"
+	"golang.org/x/crypto/openpgp/packet"
 )
 
 const Version = "0.1.0"
@@ -41,8 +42,8 @@ var (
 
 // Paths to the public and secret keyrings.
 var (
-	PubRingPath string = DefaultPublicKeyRing
-	SecRingPath string = DefaultSecretKeyRing
+	PubRingPath = DefaultPublicKeyRing
+	SecRingPath = DefaultSecretKeyRing
 )
 
 // SaneDefaultConfig is a more secure default config than the defaults.
@@ -55,7 +56,7 @@ func ParanoidDefaultConfig() *packet.Config {
 	}
 }
 
-var DefaultConfig *packet.Config = nil
+var DefaultConfig *packet.Config
 
 // A KeyRing contains a list of entities and the state required to
 // maintain the key ring.
@@ -146,7 +147,7 @@ func (keyRing *KeyRing) Import(armoured string) (n int, err error) {
 		}
 
 		for name, id := range e.Identities {
-			err = e.PrimaryKey.VerifyUserIdSignature(name, id.SelfSignature)
+			err = e.PrimaryKey.VerifyUserIdSignature(name, e.PrimaryKey, id.SelfSignature)
 			if err != nil {
 				return
 			}
@@ -214,7 +215,7 @@ func (keyRing *KeyRing) Unlock(keyID string) (err error) {
 	}
 
 	var id string
-	for k, _ := range e.Identities {
+	for k := range e.Identities {
 		id = k
 		break
 	}

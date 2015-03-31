@@ -4,13 +4,14 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"github.com/gokyle/keybase/api"
-	"github.com/gokyle/keybase/openpgp"
-	"github.com/gokyle/readpass"
 	"io/ioutil"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/gokyle/keybase/api"
+	"github.com/gokyle/keybase/openpgp"
+	"github.com/gokyle/readpass"
 )
 
 func zero(in []byte) {
@@ -79,7 +80,7 @@ func fetchKey(name, outFile string) {
 
 	pub, ok := user.PublicKeys["primary"]
 	if !ok || pub.Bundle == "" {
-		fmt.Printf("%s hasn't uploaded a public key yet.")
+		fmt.Printf("%s hasn't uploaded a public key yet.\n", name)
 		os.Exit(1)
 	}
 

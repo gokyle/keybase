@@ -1,10 +1,11 @@
 package openpgp
 
 import (
-	"code.google.com/p/go.crypto/openpgp"
 	"io/ioutil"
 	"os"
 	"testing"
+
+	"golang.org/x/crypto/openpgp"
 )
 
 var (
@@ -224,7 +225,7 @@ func TestSign(t *testing.T) {
 	message := []byte("Hello, world")
 	sig, err := testSecRing.Sign(message, fpr)
 	if err != nil {
-		t.Fatal("signature failed: %v", err)
+		t.Fatalf("signature failed: %v", err)
 	} else if len(sig) == 0 {
 		t.Fatal("empty signature")
 	}
