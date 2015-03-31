@@ -80,7 +80,7 @@ func fetchKey(name, outFile string) {
 
 	pub, ok := user.PublicKeys["primary"]
 	if !ok || pub.Bundle == "" {
-		fmt.Printf("%s hasn't uploaded a public key yet.")
+		fmt.Printf("%s hasn't uploaded a public key yet.\n", name)
 		os.Exit(1)
 	}
 
