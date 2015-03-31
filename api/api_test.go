@@ -45,7 +45,7 @@ func TestNextSequenceNo(t *testing.T) {
 	if testSession == nil {
 		t.Fatal("session not established")
 	}
-	seqNum, err := testSession.NextSequence()
+	seqNum, _, err := testSession.NextSequence()
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
